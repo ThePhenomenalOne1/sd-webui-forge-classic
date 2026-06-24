@@ -92,6 +92,15 @@ class Wan(ForgeDiffusionEngine):
                 end_image = self.end_image.movedim(1, -1)
                 _, h, w, _ = end_image.shape
 
+        if self.start_image is not None and self.end_image is not None:
+            memory_management.logger.info("[Wan] FirstLastFrameToVideo")
+        elif self.start_image is not None and self.end_image is None:
+            memory_management.logger.info("[Wan] ImageToVideo")
+        elif self.start_image is None and self.end_image is not None:
+            memory_management.logger.info("[Wan] LastFrameToVideo")
+        else:
+            raise SystemError("No images passed to Wan I2V...?")
+
         image = torch.ones((length, h, w, 3), device="cpu", dtype=torch.float32).mul(0.5)
         mask = torch.ones((1, 1, latent_shape[2] * 4, latent_shape[-2], latent_shape[-1]), device="cpu", dtype=torch.float32)
 
@@ -148,20 +157,24 @@ class Wan(ForgeDiffusionEngine):
             if b == 1:
                 # FirstLastFrameToVideo
                 self.end_image = x.cpu()
+                assert self.forge_objects.unet.model.diffusion_model.in_dim == 36
                 return
             else:
                 # LastFrameToVideo
                 self.end_image = x.cpu()
+                assert self.forge_objects.unet.model.diffusion_model.in_dim == 16
 
         else:
             if b == 1:
                 # img2img
                 sample = self.forge_objects.vae.encode(x.movedim(1, -1))
                 sample = self.forge_objects.vae.first_stage_model.process_in(sample)
+                assert self.forge_objects.unet.model.diffusion_model.in_dim == 16
                 return sample.to(x)
             else:
                 # FirstFrameToVideo
                 self.start_image = x.cpu()
+                assert self.forge_objects.unet.model.diffusion_model.in_dim == 36
 
         latent = torch.zeros([1, 16, ((b - 1) // 4) + 1, h // 8, w // 8], device=self.forge_objects.vae.device)
         self.image_to_video(b, list(latent.shape))
