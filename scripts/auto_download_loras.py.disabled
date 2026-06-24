@@ -1,0 +1,61 @@
+#!/usr/bin/env python3
+"""
+Download selected public LoRAs into sd-webui-forge-classic/models/Lora
+"""
+from huggingface_hub import snapshot_download
+import os
+import shutil
+import tempfile
+import glob
+
+MODELS = [
+    "strangerzonehf/Flux-Super-Realism-LoRA",
+    "ntc-ai/SDXL-LoRA-slider.cartoon",
+    "nphSi/LoRA_SDXL",
+]
+
+script_dir = os.path.dirname(os.path.realpath(__file__))
+target_dir = os.path.abspath(os.path.join(script_dir, "..", "models", "Lora"))
+os.makedirs(target_dir, exist_ok=True)
+
+
+def download_loras():
+    for repo in MODELS:
+        print(f"\n=== Downloading {repo} ===")
+        tmpdir = tempfile.mkdtemp()
+        try:
+            snapshot_download(
+                repo_id=repo,
+                local_dir=tmpdir,
+                allow_patterns=["*.safetensors", "*.pt", "*.ckpt", "*.pth"],
+                repo_type="model",
+                token=None,
+                force_download=False,
+            )
+        except Exception as e:
+            print(f"snapshot_download failed for {repo}: {e}")
+            shutil.rmtree(tmpdir, ignore_errors=True)
+            continue
+
+        found = False
+        for ext in ("safetensors", "pt", "ckpt", "pth"):
+            for path in glob.glob(os.path.join(tmpdir, "**", f"*.{ext}"), recursive=True):
+                found = True
+                fname = os.path.basename(path)
+                dst = os.path.join(target_dir, fname)
+                if os.path.exists(dst):
+                    print(f"Already exists, skipping: {fname}")
+                else:
+                    shutil.copy2(path, dst)
+                    print(f"Copied: {fname}")
+
+        if not found:
+            print(f"No LoRA files found in repo {repo}")
+
+        shutil.rmtree(tmpdir, ignore_errors=True)
+
+    print("\nAll done.")
+
+
+if __name__ == "__main__":
+    download_loras()
